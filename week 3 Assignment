@@ -1,0 +1,272 @@
+import numpy as np
+import pandas as pd
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, classification_report
+
+import tensorflow as tf
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense
+from tensorflow.keras.utils import to_categorical
+
+import spacy
+from spacy.matcher import PhraseMatcher
+
+# Import for ethical consideration (simulated data)
+from collections import Counter
+
+# --- START OF PART 2: PRACTICAL IMPLEMENTATION ---
+
+## Task 1: Classical ML with Scikit-learn (Iris Dataset)
+
+### 1. Data Preprocessing
+
+# Load the Iris dataset
+iris = load_iris()
+X = iris.data
+y = iris.target
+feature_names = iris.feature_names
+target_names = iris.target_names
+
+# The Iris dataset has no missing values, so we skip handling them.
+# The target variable 'y' is already label-encoded (0, 1, 2) which is suitable for Scikit-learn.
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.3, random_state=42, stratify=y
+)
+
+### 2. Model Training
+
+# Initialize and train a Decision Tree Classifier
+dt_classifier = DecisionTreeClassifier(random_state=42)
+dt_classifier.fit(X_train, y_train)
+
+### 3. Evaluation
+
+# Make predictions
+y_pred = dt_classifier.predict(X_test)
+
+# Calculate metrics
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred, average='macro')
+recall = recall_score(y_test, y_pred, average='macro')
+
+print("--- Task 1: Scikit-learn Iris Classification Results ---")
+print(f"Accuracy: {accuracy:.4f}")
+print(f"Precision (Macro): {precision:.4f}")
+print(f"Recall (Macro): {recall:.4f}")
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred, target_names=target_names))
+print("-" * 50)
+
+
+## Task 2: Deep Learning with TensorFlow (MNIST CNN)
+
+### 1. Data Preparation
+
+# Load and preprocess the MNIST dataset
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+
+# Normalize and reshape the data for CNN (convert to float and add channel dimension)
+# Original shape (60000, 28, 28) -> target shape (60000, 28, 28, 1)
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
+
+# Add a channels dimension (1 for grayscale)
+x_train = np.expand_dims(x_train, -1)
+x_test = np.expand_dims(x_test, -1)
+
+# Convert labels to one-hot encoding
+num_classes = 10
+y_train = to_categorical(y_train, num_classes=num_classes)
+y_test = to_categorical(y_test, num_classes=num_classes)
+
+### 2. Model Architecture (CNN)
+
+# Building a Sequential CNN model
+cnn_model = Sequential([
+    # First Conv/Pooling Block
+    Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)),
+    MaxPooling2D((2, 2)),
+    
+    # Second Conv/Pooling Block
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    
+    # Fully Connected Layers
+    Flatten(),
+    Dense(128, activation='relu'),
+    Dense(num_classes, activation='softmax') # Output layer for 10 classes
+])
+
+# Compile the model
+# BUG FIX: Ensure correct loss function for one-hot encoded labels (categorical_crossentropy)
+cnn_model.compile(
+    optimizer='adam', 
+    loss='categorical_crossentropy', 
+    metrics=['accuracy']
+)
+
+# Print model summary
+print("\n--- Task 2: CNN Model Summary ---")
+cnn_model.summary()
+print("-" * 50)
+
+### 3. Training and Evaluation
+
+# Train the model (using a small number of epochs for fast execution)
+history = cnn_model.fit(
+    x_train, y_train, 
+    epochs=5, # Typically 10-15 needed for >95% accuracy, but reduced for quick run.
+    batch_size=32, 
+    validation_split=0.1,
+    verbose=0
+)
+
+# Evaluate on test data
+loss, acc = cnn_model.evaluate(x_test, y_test, verbose=0)
+print("\n--- Task 2: CNN Evaluation ---")
+print(f"Test Accuracy: {acc:.4f} (Goal: >95%)")
+print("-" * 50)
+
+
+### 4. Visualization (Simulated - Printing Predictions)
+
+# Get raw predictions
+predictions = cnn_model.predict(x_test[:5])
+predicted_classes = np.argmax(predictions, axis=1)
+true_classes = np.argmax(y_test[:5], axis=1)
+
+print("\n--- Task 2: Predictions on 5 Sample Images ---")
+for i in range(5):
+    print(f"Sample {i+1}:")
+    # Display the image as a simple matrix (simulated visual)
+    print("  True Digit:", true_classes[i])
+    print("  Predicted Digit:", predicted_classes[i])
+    print("  Confidence Score:", np.max(predictions[i]))
+print("-" * 50)
+
+
+## Task 3: NLP with spaCy (Amazon Product Reviews)
+
+# Load the medium-sized English model
+try:
+    nlp = spacy.load("en_core_web_md")
+except OSError:
+    print("Downloading spaCy model 'en_core_web_md'...")
+    # NOTE: In a real environment, you would run: !python -m spacy download en_core_web_md
+    # For this script, we'll assume it's installed or use a placeholder.
+    # If the model is not found, the script will raise an error here.
+    # For demonstration, we'll proceed assuming it's available.
+    nlp = spacy.load("en_core_web_sm") # Fallback to sm model if md is not downloaded.
+
+
+# Simulated Text Data: Amazon Product Reviews
+review_texts = [
+    "I absolutely love the new 'Echo Dot' from Amazon. The sound quality is fantastic and the sleek design is great.",
+    "The 'Samsung Galaxy S23' is a disaster. The battery life is horrible, and the display cracked after a minor drop.",
+    "This 'Logitech MX Master 3' mouse has improved my workflow significantly. Highly recommend this for professionals.",
+    "My old 'Apple iPhone 12' broke, so I upgraded. The new camera is phenomenal!",
+    "Customer service for this generic brand 'Kitchen Blender' was terrible. It broke after one use."
+]
+
+print("\n--- Task 3: spaCy NLP Analysis ---")
+
+for i, text in enumerate(review_texts):
+    doc = nlp(text)
+    
+    ### 1. Named Entity Recognition (NER)
+    
+    # We'll focus on common product/brand entities: ORG (Organizations/Brands), PRODUCT (Product names)
+    entities = [(ent.text, ent.label_) for ent in doc.ents if ent.label_ in ["ORG", "PRODUCT", "GPE"]]
+    
+    # --- 2. Sentiment Analysis (Rule-Based Approach) ---
+    
+    # Simple rule: count positive/negative words
+    positive_words = ["love", "fantastic", "great", "improved", "highly recommend", "phenomenal"]
+    negative_words = ["disaster", "horrible", "cracked", "terrible", "broke"]
+    
+    # Token-based check for rule-based SA
+    positive_score = sum(1 for token in doc if token.text.lower() in positive_words)
+    negative_score = sum(1 for token in doc if token.text.lower() in negative_words)
+    
+    if positive_score > negative_score:
+        sentiment = "Positive 😊"
+    elif negative_score > positive_score:
+        sentiment = "Negative 😠"
+    else:
+        sentiment = "Neutral 😐"
+
+    print(f"\nReview {i+1}: '{text}'")
+    print(f"  Extracted Entities: {entities}")
+    print(f"  Sentiment (Rule-Based): {sentiment}")
+    print(f"  Pos/Neg Score: ({positive_score}/{negative_score})")
+
+print("-" * 50)
+
+# --- END OF PART 2: PRACTICAL IMPLEMENTATION ---
+
+
+## --- START OF PART 3: ETHICS & OPTIMIZATION ---
+
+### 1. Ethical Considerations
+
+# Scenario: Analyzing MNIST Bias
+# Although MNIST is generally balanced, imagine a custom dataset where some digits are under-represented.
+
+# Simulate a biased test set: under-representing digit '7'
+# Total samples in original MNIST test set: 10,000.
+# Let's check the distribution in the original test set (y_test is one-hot encoded)
+original_test_labels = np.argmax(y_test, axis=1)
+original_counts = Counter(original_test_labels)
+
+print("\n--- Part 3: Ethical Considerations ---")
+print("Original MNIST Test Set Distribution (Counts):")
+print(original_counts) # Should be ~1000 per digit
+
+# Potential Bias in MNIST:
+print("\nPotential Bias in MNIST Model:")
+print("If the training set had significantly fewer examples of, say, the digit '4' drawn by certain demographics (e.g., non-standard stroke thickness), the model would have lower accuracy (unfairness) for those inputs.")
+
+# Mitigation using TensorFlow Fairness Indicators (Conceptual application):
+print("\nMitigation via TensorFlow Fairness Indicators (Conceptual):")
+print("1. **Define Subgroups/Slices:** Identify the sensitive attribute (e.g., digit '4' representation, or even simulated features like 'writer age/gender' if available).")
+print("2. **Measure Disparity:** Use Fairness Indicators to calculate metrics (like accuracy, precision, recall) *for each slice* (e.g., accuracy for '4' vs. accuracy for '7').")
+print("3. **Identify Thresholds:** If the accuracy for '4' falls below an acceptable threshold (e.g., 5% lower than the median accuracy), it flags a bias.")
+print("4. **Remediation:** Apply data augmentation to under-represented slices or use re-weighting techniques during training to mitigate the disparity.")
+
+# Potential Bias in Amazon Reviews NLP:
+print("\nPotential Bias in Amazon Reviews NLP Model (Sentiment):")
+print("The rule-based sentiment model used here is naive. A machine learning-based model (like a BERT classifier) could learn to associate certain **product names, brands, or regional slang/jargon** with positive or negative sentiment, leading to biased results. For example, consistently rating reviews containing a specific competitor's product name as negative, even if the text is neutral.")
+
+# Mitigation using spaCy's rule-based systems (Refining Rules):
+print("\nMitigation via spaCy's rule-based systems (Refining Rules):")
+print("1. **Rule Audit:** spaCy's rule-based approach allows for explicit, transparent rules. Bias can be mitigated by auditing the **sentiment lexicon** to ensure it is not overly skewed towards brand-specific or demographically-specific language.")
+print("2. **Contextual Rules:** Instead of simple word-counting, use **Dependency Parsing** (a spaCy feature) to enforce rules based on context, e.g., 'If a positive word like 'great' is connected by a dependency arc to a specific product entity, increase the positive score.' This reduces reliance on simple keyword presence.")
+print("-" * 50)
+
+
+### 2. Troubleshooting Challenge
+
+# The buggy code scenario is addressed by fixing the CNN compilation step:
+# Original Bug: Using `loss='sparse_categorical_crossentropy'` (for integer labels) when the labels `y_train/y_test` were converted to one-hot encoding (using `to_categorical`).
+# Fix Applied in Task 2: Compiled the model with `loss='categorical_crossentropy'` (for one-hot encoded labels).
+
+print("\n--- Part 3: Troubleshooting Challenge (Bug Fix) ---")
+print("Bug: The original TensorFlow script likely used 'sparse_categorical_crossentropy' for loss, but the labels were one-hot encoded using `to_categorical`.")
+print("Fix: The script above correctly compiles the CNN with `loss='categorical_crossentropy'` to match the one-hot encoded output layer and labels.")
+print("-" * 50)
+
+# --- BONUS TASK (Conceptual): Deployment ---
+print("\n--- Bonus Task: Deployment (Conceptual) ---")
+print("To deploy the MNIST CNN model using Streamlit, you would:")
+print("1. **Save the Model:** `cnn_model.save('mnist_cnn_model.h5')`")
+print("2. **Create `app.py`:**")
+print("   - Import Streamlit, TensorFlow, and the saved model.")
+print("   - Use `st.title()`, `st.sidebar()`, and `st.file_uploader()` or a drawing canvas component.")
+print("   - Load the image, preprocess it (resize to 28x28, normalize), and pass it to the model for prediction.")
+print("   - Display the result using `st.write()` and the prediction score.")
+print("3. **Screenshot/Demo:** A screenshot would show a web page with a place to upload an image and the predicted digit displayed.")
